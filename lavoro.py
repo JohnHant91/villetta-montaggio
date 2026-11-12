@@ -270,6 +270,12 @@ def unisci(pezzi, durate, stile, fx):
     for p in pezzi:
         args += ["-i", p]
     durate = [probe(p)["dur"] or d for p, d in zip(pezzi, durate)]  # durate reali (arrotondate ai fotogrammi)
+    if stile == "racconto":  # tagli veri, fotogramma contro fotogramma, nessuna dissolvenza
+        lista = os.path.join(TMP, "lista.txt")
+        with open(lista, "w") as f:
+            f.write("".join(f"file '{p}'\n" for p in pezzi))
+        ff(["-f", "concat", "-safe", "0", "-i", lista, "-an"] + X264 + [out], "concatena")
+        return out, sum(durate), [sum(durate[:k]) for k in range(len(durate))], durate
     prev, total = "[0:v]", durate[0]
     inizi = [0.0]  # dove comincia davvero ogni pezzo nel reel (serve ad agganciare le scritte alle scene)
     for k in range(1, len(pezzi)):
