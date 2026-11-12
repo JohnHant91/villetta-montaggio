@@ -27,18 +27,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
+      - uses: actions/checkout@v4
+
       - name: C'è un lavoro?
         id: next
         run: |
           set -e
           TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=avilletta-regia" | python3 -c 'import sys,json;print(json.load(sys.stdin)["value"])')
           echo "::add-mask::$TOKEN"
-          CODE=$(curl -sS -o job.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" -X POST "$REGIA/api/montaggio/prossimo")
+          CODE=$(curl -sS -o "$RUNNER_TEMP/job.json" -w '%{http_code}' -H "Authorization: Bearer $TOKEN" -X POST "$REGIA/api/montaggio/prossimo")
           echo "risposta Regia: $CODE"
           if [ "$CODE" = "200" ]; then echo "lavoro=si" >> "$GITHUB_OUTPUT"; else echo "lavoro=no" >> "$GITHUB_OUTPUT"; fi
-
-      - uses: actions/checkout@v4
-        if: steps.next.outputs.lavoro == 'si'
 
       - name: Strumenti
         if: steps.next.outputs.lavoro == 'si'
@@ -51,7 +50,7 @@ jobs:
         if: steps.next.outputs.lavoro == 'si'
         run: |
           set -e
-          JOB=$(python3 -c 'import json;print(json.load(open("job.json"))["id"])')
-          PASS=$(python3 -c 'import json;print(json.load(open("job.json"))["pass"])')
+          JOB=$(python3 -c 'import json;print(json.load(open(__import__("os").environ["RUNNER_TEMP"]+"/job.json"))["id"])')
+          PASS=$(python3 -c 'import json;print(json.load(open(__import__("os").environ["RUNNER_TEMP"]+"/job.json"))["pass"])')
           echo "::add-mask::$PASS"
           JOB="$JOB" PASS="$PASS" python3 lavoro.py
