@@ -264,7 +264,7 @@ def unisci(pezzi, durate, stile, fx):
     if fx.get("bagliori"):
         leak = bagliore(total, 0)
         args += ["-i", leak]
-        fc.append(f"[{len(pezzi)}:v]format=gbrp[lk];{prev}format=gbrp[bs];[bs][lk]blend=all_mode=screen:all_opacity=0.22,format=yuv420p[xl]")
+        fc.append(f"[{len(pezzi)}:v]format=gbrp[lk];{prev}format=gbrp[bs];[bs][lk]blend=all_mode=screen:all_opacity=0.22" + (f":enable='lt(t,{total - durate[-1]:.3f})'" if fx.get("_finale") else "") + ",format=yuv420p[xl]")
         prev = "[xl]"
     ff(args + ["-filter_complex", ";".join(fc), "-map", prev] + X264 + [out], "transizioni")
     return out, total
@@ -480,11 +480,14 @@ def monta(piano):
     if fin:
         p, d = cartello_finale(fin, lut)
         pezzi.append(p); durate.append(d)
+        fx["_finale"] = True  # niente bagliori sul cartello finale
     video, tot = unisci(pezzi, durate, stile, fx)
     # testi: titolo d'apertura, scritte, cartello finale, sottotitoli
     scritte = list(piano.get("scritte") or [])
     if fin:
         inizio_fin = tot - durate[-1]
+        # le scritte non invadono il cartello finale
+        scritte = [dict(x, a=min(float(x["a"]), inizio_fin - 0.05)) for x in scritte if float(x["da"]) < inizio_fin - 0.6]
         scritte.append({"da": inizio_fin + 0.2, "a": tot, "testo": fin.get("sottotitolo", "avilletta.it · link in bio")})
     titolo = piano.get("titolo")
     if fin and fin.get("testo"):
