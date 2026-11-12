@@ -274,7 +274,7 @@ def unisci(pezzi, durate, stile, fx):
     inizi = [0.0]  # dove comincia davvero ogni pezzo nel reel (serve ad agganciare le scritte alle scene)
     for k in range(1, len(pezzi)):
         tr = menu[(k - 1) % len(menu)]
-        tdk = 2 / FPS if tr == "taglio" else td
+        tdk = 1 / FPS if tr == "taglio" else td
         trn = "fade" if tr == "taglio" else tr
         fc.append(f"{prev}[{k}:v]xfade=transition={trn}:duration={tdk}:offset={total - tdk:.3f}[x{k}]")
         inizi.append(total - tdk)
