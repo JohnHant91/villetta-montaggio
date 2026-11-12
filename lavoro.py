@@ -248,17 +248,19 @@ def unisci(pezzi, durate, stile, fx):
         td = 0.6
     if len(pezzi) == 1:
         shutil.copy(pezzi[0], out)
-        return out, durate[0]
+        return out, durate[0], [0.0], [durate[0]]
     args, fc = [], []
     for p in pezzi:
         args += ["-i", p]
     durate = [probe(p)["dur"] or d for p, d in zip(pezzi, durate)]  # durate reali (arrotondate ai fotogrammi)
     prev, total = "[0:v]", durate[0]
+    inizi = [0.0]  # dove comincia davvero ogni pezzo nel reel (serve ad agganciare le scritte alle scene)
     for k in range(1, len(pezzi)):
         tr = menu[(k - 1) % len(menu)]
         tdk = 2 / FPS if tr == "taglio" else td
         trn = "fade" if tr == "taglio" else tr
         fc.append(f"{prev}[{k}:v]xfade=transition={trn}:duration={tdk}:offset={total - tdk:.3f}[x{k}]")
+        inizi.append(total - tdk)
         prev = f"[x{k}]"
         total = total + durate[k] - tdk
     if fx.get("bagliori"):
@@ -267,7 +269,7 @@ def unisci(pezzi, durate, stile, fx):
         fc.append(f"[{len(pezzi)}:v]format=gbrp[lk];{prev}format=gbrp[bs];[bs][lk]blend=all_mode=screen:all_opacity=0.22" + (f":enable='lt(t,{total - durate[-1]:.3f})'" if fx.get("_finale") else "") + ",format=yuv420p[xl]")
         prev = "[xl]"
     ff(args + ["-filter_complex", ";".join(fc), "-map", prev] + X264 + [out], "transizioni")
-    return out, total
+    return out, total, inizi, durate
 
 
 # ------------------------------------------------------------------ testi (ASS: titoli animati e sottotitoli parola per parola)
@@ -481,9 +483,16 @@ def monta(piano):
         p, d = cartello_finale(fin, lut)
         pezzi.append(p); durate.append(d)
         fx["_finale"] = True  # niente bagliori sul cartello finale
-    video, tot = unisci(pezzi, durate, stile, fx)
+    video, tot, inizi, reali = unisci(pezzi, durate, stile, fx)
+    durate = reali
     # testi: titolo d'apertura, scritte, cartello finale, sottotitoli
     scritte = list(piano.get("scritte") or [])
+    # scritte agganciate alla scena: compaiono solo mentre si vede la clip a cui si riferiscono
+    for i, c in enumerate(clip):
+        if c.get("scritta"):
+            fine = inizi[i + 1] if i + 1 < len(inizi) else inizi[i] + durate[i]
+            if fine - inizi[i] >= 0.6:
+                scritte.append({"da": inizi[i] + 0.12, "a": fine - 0.06, "testo": c["scritta"]})
     if fin:
         inizio_fin = tot - durate[-1]
         # le scritte non invadono il cartello finale
