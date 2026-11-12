@@ -1,7 +1,7 @@
 [montaggio] clip 1: Pixabay #238823 {'dur': 17.16, 'audio': False, 'w': 1080, 'h': 1920}
-[montaggio] clip 2: Pixabay #35427 {'dur': 6.208333, 'audio': True, 'w': 1920, 'h': 1080}
+[montaggio] clip 2: Pixabay #45705 {'dur': 59.966667, 'audio': True, 'w': 1920, 'h': 1080}
 [montaggio] battiti trovati: 139 (96 bpm)
 [montaggio] pezzo 1/2: video 9.01s nessuno
 [montaggio] pezzo 2/2: video 3.74s nessuno
-[montaggio] reel pronto: 14.4s, 7812 KB, stile racconto
+[montaggio] reel pronto: 14.5s, 8289 KB, stile racconto
 [montaggio] consegnato alla Regia
