@@ -274,7 +274,7 @@ def unisci(pezzi, durate, stile, fx):
     inizi = [0.0]  # dove comincia davvero ogni pezzo nel reel (serve ad agganciare le scritte alle scene)
     for k in range(1, len(pezzi)):
         tr = menu[(k - 1) % len(menu)]
-        tdk = 1 / FPS if tr == "taglio" else td
+        tdk = 2 / FPS if tr == "taglio" else td
         trn = "fade" if tr == "taglio" else tr
         fc.append(f"{prev}[{k}:v]xfade=transition={trn}:duration={tdk}:offset={total - tdk:.3f}[x{k}]")
         inizi.append(total - tdk)
@@ -286,6 +286,15 @@ def unisci(pezzi, durate, stile, fx):
         fc.append(f"[{len(pezzi)}:v]format=gbrp[lk];{prev}format=gbrp[bs];[bs][lk]blend=all_mode=screen:all_opacity=0.22" + (f":enable='lt(t,{total - durate[-1]:.3f})'" if fx.get("_finale") else "") + ",format=yuv420p[xl]")
         prev = "[xl]"
     ff(args + ["-filter_complex", ";".join(fc), "-map", prev] + X264 + [out], "transizioni")
+    reale = probe(out)["dur"]
+    if reale < total - 0.3:  # le transizioni hanno perso dei pezzi: rimonto con tagli semplici in fila
+        log(f"transizioni: video di {reale:.1f}s invece di {total:.1f}s, rimonto a tagli semplici")
+        lista = os.path.join(TMP, "lista.txt")
+        with open(lista, "w") as f:
+            f.write("".join(f"file '{p}'\n" for p in pezzi))
+        ff(["-f", "concat", "-safe", "0", "-i", lista, "-an"] + X264 + [out], "concatena")
+        inizi = [sum(durate[:k]) for k in range(len(durate))]
+        total = sum(durate)
     return out, total, inizi, durate
 
 
