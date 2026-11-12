@@ -150,6 +150,8 @@ def durate_a_tempo(n, beats, bpm, stile, durate_volute):
         base = [b * (2 if i in (0, n - 1) else 1) for i, b in enumerate(base)]  # gancio e chiusura un po' più lunghi
         while sum(base) * beat < 9 and n:                 # almeno ~9 s di video
             base = [b + 1 for b in base]
+    elif stile == "racconto":  # inquadrature lunghe e vere: il regista indica la durata, il taglio arriva sul colpo di scena
+        base = [max(2, round(3.5 / beat)) for _ in range(n)]
     else:  # cinematico
         base = [max(2, round(2.6 / beat)) for _ in range(n)]
     out, t = [], 0.0
@@ -297,16 +299,25 @@ def ass_testo(t):
     return str(t).replace("\\", "").replace("{", "(").replace("}", ")").replace("\n", " ")
 
 
-def scrivi_ass(path, titolo, scritte, parole, stile_sub):
+def scrivi_ass(path, titolo, scritte, parole, stile_sub, gancio=None):
     acc = stile_sub.get("colore", "&H0037D4FF")  # parola evidenziata (giallo caldo) in formato ASS BGR
     head = ("[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 0\n\n[V4+ Styles]\n"
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
             "Style: Titolo,Great Vibes,150,&H00FFFFFF,&H00FFFFFF,&H00000000,&H78000000,0,0,0,0,100,100,0,0,1,0,6,5,60,60,0,1\n"
             "Style: TitoloBold,Montserrat,96,&H00FFFFFF,&H00FFFFFF,&H00000000,&H78000000,-1,0,0,0,100,100,2,0,1,0,6,5,60,60,0,1\n"
             "Style: Scritta,Montserrat,64,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,1,0,1,3,3,2,80,80,640,1\n"
+            "Style: Gancio,Playfair Display,76,&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,0,0,0,0,100,100,0,0,1,0,5,8,70,70,250,1\n"
             "Style: Sub,Montserrat,74,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,5,2,2,70,70,560,1\n\n"
             "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
     ev = []
+    if gancio and gancio.get("testo"):
+        # frase-gancio fissa in alto per tutto il video (stile "racconto"): una parola può essere colorata
+        tx = ass_testo(gancio["testo"])
+        ev_w = gancio.get("evidenzia")
+        col = gancio.get("colore", "&H003C3CFF&")
+        if ev_w and ev_w in tx:
+            tx = tx.replace(ev_w, f"{{\\c{col}}}{ass_testo(ev_w)}{{\\c&H00FFFFFF&}}", 1)
+        ev.append(f"Dialogue: 3,{ts(float(gancio.get('da', 0)))},{ts(float(gancio['a']))},Gancio,,0,0,0,,{{\\fad(120,200)}}{tx}")
     if titolo and titolo.get("testo"):
         st = "Titolo" if titolo.get("stile", "calligrafia") == "calligrafia" else "TitoloBold"
         a, b = float(titolo.get("da", 0.15)), float(titolo.get("a", 2.4))
@@ -375,7 +386,7 @@ def whoosh(path, dur=0.35):
     return path
 
 
-def mix_finale(video, dur, musica, voce, tagli, sfx, ass, out):
+def mix_finale(video, dur, musica, voce, tagli, sfx, ass, out, ambiente=None):
     """Audio: musica a norma social (-14 LUFS), si abbassa sotto la voce; whoosh sulle transizioni; testi impressi."""
     args = ["-i", video]
     filt, idx, mix = [], 1, []
@@ -395,6 +406,16 @@ def mix_finale(video, dur, musica, voce, tagli, sfx, ass, out):
             mix += ["[voce]"]
     elif musica:
         mix += ["[mus]"]
+    # suono vero delle clip (onde, tuffo, voci): ogni pezzo porta il suo, tagliato esattamente come l'immagine
+    for k, a in enumerate(ambiente or []):
+        args += ["-i", a["file"]]
+        tempo = f",atempo={a['vel']:.3f}" if abs(a["vel"] - 1) > 0.01 and 0.5 <= a["vel"] <= 2 else ""
+        ms = max(0, int(a["da"] * 1000))
+        filt.append(f"[{idx}:a]atrim=start={a['in']:.3f}:duration={a['len'] * a['vel']:.3f},asetpts=PTS-STARTPTS{tempo},"
+                    f"aformat=sample_rates=48000:channel_layouts=stereo,volume={a['vol']:.2f},"
+                    f"afade=t=in:d=0.03,afade=t=out:st={max(0, a['len'] - 0.06):.3f}:d=0.06,adelay={ms}|{ms}[amb{k}]")
+        mix.append(f"[amb{k}]")
+        idx += 1
     if sfx and tagli:
         w = whoosh(os.path.join(TMP, "whoosh.wav"))
         for k, t in enumerate(tagli[:12]):
@@ -419,6 +440,10 @@ def monta(piano):
     prepara_font()
     stile = piano.get("stile", "ritmo")
     fx = dict({"vignetta": True}, **(piano.get("effetti") or {}))
+    if stile == "racconto":  # niente trucchi: immagine naturale, tagli secchi, suono vero delle clip
+        fx = dict({"vignetta": False, "grana": False, "bagliori": False, "whoosh": False, "transizioni": ["taglio"]}, **(piano.get("effetti") or {}))
+        piano.setdefault("colore", "naturale")
+        piano.setdefault("audio_originale", True)
     if stile == "cinematico":
         fx.setdefault("grana", True); fx.setdefault("bagliori", True); fx.setdefault("bande_cinema", False)
     lut = crea_lut(piano.get("colore", "mediterraneo"))
@@ -518,8 +543,20 @@ def monta(piano):
         ass_fin = {"testo": fin["testo"], "stile": "calligrafia", "da": tot - durate[-1] + 0.1, "a": tot}
     else:
         ass_fin = None
+    gancio = piano.get("testo_fisso")
+    if gancio and gancio.get("testo"):
+        gancio = dict(gancio, a=gancio.get("a") or ((tot - durate[-1]) if fin else tot))
     ass = os.path.join(TMP, "testi.ass")
-    scrivi_ass(ass, titolo, scritte, parole, piano.get("stile_sottotitoli") or {})
+    scrivi_ass(ass, titolo, scritte, parole, piano.get("stile_sottotitoli") or {}, gancio)
+    # suono originale delle clip
+    ambiente = []
+    if piano.get("audio_originale"):
+        for i, c in enumerate(clip):
+            vol = c.get("suono", 1.0 if not mus else 0.7)
+            if c.get("tipo") == "foto" or c.get("avatar") or c.get("ramp") or not c.get("_info", {}).get("audio") or not vol:
+                continue
+            ambiente.append({"file": c["file"], "in": float(c.get("in", 0)), "len": durate[i],
+                             "vel": float(c.get("velocita", 1) or 1), "da": inizi[i], "vol": float(vol)})
     if ass_fin:  # secondo titolo (cartello finale) aggiunto in coda
         tmp = os.path.join(TMP, "fin.ass")
         scrivi_ass(tmp, ass_fin, [], [], {})
@@ -532,7 +569,7 @@ def monta(piano):
         t += d
         tagli.append(t)
     out = os.path.join(TMP, "reel.mp4")
-    mix_finale(video, tot, mus, voce_file, tagli, fx.get("whoosh", stile == "ritmo"), ass, out)
+    mix_finale(video, tot, mus, voce_file, tagli, fx.get("whoosh", stile == "ritmo"), ass, out, ambiente)
     log(f"reel pronto: {tot:.1f}s, {os.path.getsize(out) // 1024} KB, stile {stile}")
     return out, tot
 
