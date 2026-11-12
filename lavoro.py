@@ -463,6 +463,7 @@ def monta(piano):
         ext = ".jpg" if c.get("tipo") == "foto" else ".mp4"
         c["file"] = c.get("file") or scarica(c["src"], os.path.join(TMP, f"src_{i:02d}{ext}"))
         c["_info"] = probe(c["file"]) if c.get("tipo") != "foto" else {"dur": 99}
+        log(f"clip {i + 1}: {c.get('fonte', c.get('kv', ''))} {c['_info']}")
     # musica e battiti
     mus = piano.get("musica")
     beats, bpm = None, 110.0

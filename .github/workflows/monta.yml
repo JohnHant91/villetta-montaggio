@@ -57,7 +57,10 @@ jobs:
           JOB=$(python3 -c 'import json;print(json.load(open(__import__("os").environ["RUNNER_TEMP"]+"/job.json"))["id"])')
           PASS=$(python3 -c 'import json;print(json.load(open(__import__("os").environ["RUNNER_TEMP"]+"/job.json"))["pass"])')
           echo "::add-mask::$PASS"
-          JOB="$JOB" PASS="$PASS" python3 lavoro.py
+          mkdir -p "$RUNNER_TEMP/anteprima"
+          set -o pipefail
+          JOB="$JOB" PASS="$PASS" python3 lavoro.py 2>&1 | tee "$RUNNER_TEMP/registro.txt"
+          if grep -q '"anteprima": *true' "$RUNNER_TEMP/job.json" 2>/dev/null || ls "$RUNNER_TEMP/anteprima"/*.jpg >/dev/null 2>&1; then cp "$RUNNER_TEMP/registro.txt" "$RUNNER_TEMP/anteprima/registro-$JOB.txt"; fi
 
       - name: Anteprima (solo prove)
         if: steps.next.outputs.lavoro == 'si'
@@ -69,4 +72,4 @@ jobs:
           git config user.name "montatore" && git config user.email "montatore@users.noreply.github.com"
           git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
           git fetch -q --depth 1 origin anteprime && git reset -q FETCH_HEAD || true
-          git add *.jpg && git commit -qm "anteprima" && git push -q origin anteprime
+          git add *.jpg *.txt 2>/dev/null; git add -A && git commit -qm "anteprima" && git push -q origin anteprime
