@@ -171,15 +171,17 @@ def durate_a_tempo(n, beats, bpm, stile, durate_volute):
 
 # ------------------------------------------------------------------ preparazione dei pezzi
 def filtro_movimento(eff, dur, i):
-    """Motion designer: movimenti sul pezzo già in 1080x1920."""
+    """Motion designer: movimenti sul pezzo già in 1080x1920 (misure sempre pari: niente sorprese nel colore 4:2:0)."""
+    def zoom(f):
+        return f"scale=w='2*trunc({W}*({f})/2)':h='2*trunc({H}*({f})/2)':eval=frame,crop={W}:{H}"
     if eff == "punch":      # zoom secco sul battito, poi assestamento
-        return f"scale=w='{W}*(1+0.14*max(0,1-t/0.18))':h=-2:eval=frame,crop={W}:{H}"
+        return zoom("1+0.14*max(0,1-t/0.18)")
     if eff == "zoom_avanti":
-        return f"scale=w='{W}*min(1.08,1+0.08*t/{dur:.2f})':h=-2:eval=frame,crop={W}:{H}"
+        return zoom(f"min(1.08,1+0.08*t/{dur:.2f})")
     if eff == "zoom_indietro":
-        return f"scale=w='{W}*max(1.002,1.08-0.08*t/{dur:.2f})':h=-2:eval=frame,crop={W}:{H}"
+        return zoom(f"max(1,1.08-0.08*t/{dur:.2f})")
     if eff == "tremolio":
-        return (f"scale={int(W*1.05)}:{int(H*1.05)},crop={W}:{H}:x='(iw-{W})/2+9*sin(t*31+{i})':y='(ih-{H})/2+9*cos(t*23+{i})'")
+        return (f"scale={int(W*1.05)//2*2}:{int(H*1.05)//2*2},crop={W}:{H}:x='(iw-{W})/2+9*sin(t*31+{i})':y='(ih-{H})/2+9*cos(t*23+{i})'")
     return ""
 
 
@@ -227,9 +229,19 @@ def prepara_pezzo(i, c, lut, stile, fx):
     else:
         chain += (f",split=2[a][b];[a]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},boxblur=30:3,eq=brightness=-0.08[bg];"
                   f"[b]scale={W}:{H}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2")
-    chain += (f",{mov}" if mov else "") + f",setsar=1,{post},trim=duration={dur:.3f}[v]"
-    ff(["-i", src, "-filter_complex", chain, "-map", "[v]", "-an"] + X264 + [out], f"clip {i}")
-    return out
+    base = chain
+    tentativi = [(mov, post), ("", post), ("", ",".join([f"lut3d='{lut}'"] + extra))]
+    for k, (m, pp) in enumerate(tentativi):
+        ch = base + (f",{m}" if m else "") + f",setsar=1,{pp},trim=duration={dur:.3f}[v]"
+        try:
+            ff(["-i", src, "-filter_complex", ch, "-map", "[v]", "-an"] + X264 + [out], f"clip {i}")
+            if k:
+                log(f"pezzo {i + 1}: montato in versione semplificata (tentativo {k + 1})")
+            return out
+        except RuntimeError as e:
+            if k == len(tentativi) - 1:
+                raise
+            log(f"pezzo {i + 1}: {str(e)[:160]} -> riprovo più semplice")
 
 
 def bagliore(dur, i):
