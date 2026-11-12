@@ -46,6 +46,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null
+          python3 -m pip install --quiet --upgrade pip
+          python3 -m pip install --quiet librosa soundfile faster-whisper || echo "librerie facoltative non installate"
           ffmpeg -version | head -1
 
       - name: Monta
