@@ -47,7 +47,10 @@ def regia(path, data=None, ctype="application/json"):
 def scarica(url, dest):
     if url.startswith("/"):
         url = REGIA + url
-    req = urllib.request.Request(url, headers={"user-agent": "Mozilla/5.0 villetta-montaggio/2.0", "x-montaggio": PASS})
+    h = {"user-agent": "Mozilla/5.0 (villetta-montaggio/2.0; A' Villetta B&B)"}
+    if url.startswith(REGIA):  # il lasciapassare va solo alla Regia, mai a siti esterni
+        h["x-montaggio"] = PASS
+    req = urllib.request.Request(url, headers=h)
     with urllib.request.urlopen(req, timeout=300) as r, open(dest, "wb") as f:
         shutil.copyfileobj(r, f)
     return dest
@@ -467,7 +470,12 @@ def monta(piano):
         if c.get("tipo") == "avatar":  # arriva dalla voce (video HeyGen), più sotto
             continue
         ext = ".jpg" if c.get("tipo") == "foto" else ".mp4"
-        c["file"] = c.get("file") or scarica(c["src"], os.path.join(TMP, f"src_{i:02d}{ext}"))
+        try:
+            c["file"] = c.get("file") or scarica(c["src"], os.path.join(TMP, f"src_{i:02d}{ext}"))
+        except Exception as e:  # una clip che non si scarica non ferma il reel
+            log(f"clip {i + 1} non scaricata, la salto:", str(e)[:120])
+            c["tipo"] = "saltata"
+            continue
         c["_info"] = probe(c["file"]) if c.get("tipo") != "foto" else {"dur": 99}
         log(f"clip {i + 1}: {c.get('fonte', c.get('kv', ''))} {c['_info']}")
     # musica e battiti
@@ -497,7 +505,9 @@ def monta(piano):
                     c.update({"file": vf, "tipo": "video", "_info": probe(vf), "avatar": True, "effetto": c.get("effetto", "zoom_avanti")})
     elif isinstance(piano.get("sottotitoli"), list):
         parole = parole_da_sottotitoli(piano["sottotitoli"])
-    clip = [c for c in clip if c.get("tipo") != "avatar"]  # pezzi avatar senza voce: tolti
+    clip = [c for c in clip if c.get("tipo") not in ("avatar", "saltata")]  # pezzi avatar senza voce e clip mancanti: tolti
+    if not clip:
+        raise RuntimeError("nessuna clip utilizzabile")
     # durate: parlato -> pezzi coprono la voce; altrimenti a tempo di musica
     volute = [c.get("durata") for c in clip]
     if stile == "parlato" and voce_file:
