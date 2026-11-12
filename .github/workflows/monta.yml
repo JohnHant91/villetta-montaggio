@@ -15,7 +15,7 @@ on:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 concurrency:
   group: montaggio
@@ -58,3 +58,15 @@ jobs:
           PASS=$(python3 -c 'import json;print(json.load(open(__import__("os").environ["RUNNER_TEMP"]+"/job.json"))["pass"])')
           echo "::add-mask::$PASS"
           JOB="$JOB" PASS="$PASS" python3 lavoro.py
+
+      - name: Anteprima (solo prove)
+        if: steps.next.outputs.lavoro == 'si'
+        run: |
+          D="$RUNNER_TEMP/anteprima"
+          [ -d "$D" ] && ls "$D"/*.jpg >/dev/null 2>&1 || exit 0
+          cd "$D"
+          git init -q && git checkout -q -b anteprime
+          git config user.name "montatore" && git config user.email "montatore@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          git fetch -q --depth 1 origin anteprime && git reset -q FETCH_HEAD || true
+          git add *.jpg && git commit -qm "anteprima" && git push -q origin anteprime

@@ -526,6 +526,15 @@ def main():
         with open(out, "rb") as f:
             regia(f"/api/montaggio/{JOB}/risultato?durata={dur:.1f}", f.read(), ctype="video/mp4")
         log("consegnato alla Regia")
+        if piano.get("anteprima"):  # solo per i montaggi di prova: un foglio di fotogrammi per il controllo
+            try:
+                d = os.path.join(os.environ.get("RUNNER_TEMP", TMP), "anteprima")
+                os.makedirs(d, exist_ok=True)
+                passo = max(dur / 12.0, 0.2)
+                ff(["-i", out, "-vf", f"fps=1/{passo:.3f},scale=270:-2,tile=6x2:padding=4", "-frames:v", "1", "-q:v", "4",
+                    os.path.join(d, f"montaggio-{JOB}.jpg")])
+            except Exception as e:
+                log("anteprima non creata:", e)
     except Exception as e:
         log("ERRORE:", e)
         if JOB and not os.environ.get("PIANO_FILE"):
