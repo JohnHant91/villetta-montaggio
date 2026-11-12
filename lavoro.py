@@ -175,9 +175,9 @@ def filtro_movimento(eff, dur, i):
     if eff == "punch":      # zoom secco sul battito, poi assestamento
         return f"scale=w='{W}*(1+0.14*max(0,1-t/0.18))':h=-2:eval=frame,crop={W}:{H}"
     if eff == "zoom_avanti":
-        return f"scale=w='{W}*(1+0.08*t/{dur:.2f})':h=-2:eval=frame,crop={W}:{H}"
+        return f"scale=w='{W}*min(1.08,1+0.08*t/{dur:.2f})':h=-2:eval=frame,crop={W}:{H}"
     if eff == "zoom_indietro":
-        return f"scale=w='{W}*(1.08-0.08*t/{dur:.2f})':h=-2:eval=frame,crop={W}:{H}"
+        return f"scale=w='{W}*max(1.002,1.08-0.08*t/{dur:.2f})':h=-2:eval=frame,crop={W}:{H}"
     if eff == "tremolio":
         return (f"scale={int(W*1.05)}:{int(H*1.05)},crop={W}:{H}:x='(iw-{W})/2+9*sin(t*31+{i})':y='(ih-{H})/2+9*cos(t*23+{i})'")
     return ""
