@@ -1,7 +1,7 @@
 # Motore di montaggio di A' Villetta
 # Ogni 10 minuti (8-23 ora italiana) chiede alla Regia se c'è un reel da montare.
 # Si presenta con l'identità firmata da GitHub (OIDC): nessuna chiave salvata qui.
-# Tutta la logica del montaggio vive nella Regia: qui si scarica ed esegue lo script del lavoro.
+# Il montatore è lavoro.py (in questo archivio); clip, piano e risultato passano dalla Regia.
 name: monta
 
 on:
@@ -37,6 +37,9 @@ jobs:
           echo "risposta Regia: $CODE"
           if [ "$CODE" = "200" ]; then echo "lavoro=si" >> "$GITHUB_OUTPUT"; else echo "lavoro=no" >> "$GITHUB_OUTPUT"; fi
 
+      - uses: actions/checkout@v4
+        if: steps.next.outputs.lavoro == 'si'
+
       - name: Strumenti
         if: steps.next.outputs.lavoro == 'si'
         run: |
@@ -51,5 +54,4 @@ jobs:
           JOB=$(python3 -c 'import json;print(json.load(open("job.json"))["id"])')
           PASS=$(python3 -c 'import json;print(json.load(open("job.json"))["pass"])')
           echo "::add-mask::$PASS"
-          curl -fsSL -H "x-montaggio: $PASS" "$REGIA/api/montaggio/$JOB/script.py" -o lavoro.py
           JOB="$JOB" PASS="$PASS" python3 lavoro.py
