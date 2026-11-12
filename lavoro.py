@@ -67,8 +67,11 @@ def prepara_font():
 def ff(args, label=""):
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"] + args
     p = subprocess.run(cmd, capture_output=True, text=True)
+    if p.returncode != 0 and not p.stderr.strip():  # uscita muta (memoria/processo interrotto): riprova leggero
+        log(f"ffmpeg {label}: uscita {p.returncode} senza messaggi, riprovo con meno fili")
+        p = subprocess.run(cmd[:1] + ["-threads", "2"] + cmd[1:-1] + ["-threads", "2", cmd[-1]], capture_output=True, text=True)
     if p.returncode != 0:
-        raise RuntimeError(f"ffmpeg {label}: {p.stderr.strip()[-900:]}")
+        raise RuntimeError(f"ffmpeg {label} (uscita {p.returncode}): {p.stderr.strip()[-900:]}")
 
 
 def probe(path):
